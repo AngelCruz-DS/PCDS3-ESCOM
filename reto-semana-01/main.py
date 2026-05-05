@@ -43,16 +43,37 @@ def procc_lin(linea):
     -Separa por comas
     -Limpia, trunca y suma cada valor
     """
-    pass
+    limpialineas = linea.strip() #Quita el salto de linea y espacios en los extremos
 
+    if not limpialineas: 
+        return 0 #lineas vacias dan 0
+    
+    elem = limpialineas.split(",") #Corta en cada coma
+    sum_tot = 0
 
+    for elem in elem:   #Pasamos cada "pedazo"
+        limpio = lim_val(elem)
+        numero = conv_ent(limpio)
+        sum_tot += numero
 
+    return sum_tot 
 
+def main():
+    """
+    Lee el archivo linea por linea, procesa e imprime
+    """
+    for linea in sys.stdin:
+        resultado = procc_lin(linea)
+        print(resultado)
 
-
-
-
-def main ():
-    pass
 if __name__ == "__main__":
     main()
+    
+
+
+
+
+
+
+
+
