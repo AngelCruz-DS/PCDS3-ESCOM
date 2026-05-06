@@ -45,7 +45,19 @@ def main():
         productos[prod]["promedio"] = ingreso / unidades if unidades > 0 else 0
         
     prod_ord = sorted( #Ordena de mayor a menor
-        productos.items()
+        productos.items(),
         key=lambda x: x[1]["ingreso"], #"lambda" es una funcion anonima
         reverse=True #Ordena de manera descendente
     )
+
+    print("producto,unidades_vendidas,ingreso_total,precio_promedio")
+    for nombre, datos in prod_ord:
+        unidades_final = datos["unidades"]
+        ingreso_final = datos ["ingreso"]
+        promedio_final = datos["promedio"]
+
+        print(f"{nombre},{unidades_final},{ingreso_final:.2f},{promedio_final:.2f}")
+
+if __name__ == "__main__":
+    main()
+    
