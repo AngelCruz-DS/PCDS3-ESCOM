@@ -29,3 +29,52 @@ def validar_envio(codigo: str) -> Dict:
         "fecha": f"{match.group(1)}-{match.group(2)}-{match.group(3)}" if match else None,
         "secuencial": match.group(4) if match else None
     }
+
+def validar_empleado(codigo: str) -> Dict:
+    # Plantilla: EMP - Depto - Número(4 dígitos, no empieza con 0)
+    patron = r'^EMP-([A-Z]{3})-([1-9]\d{3})$'
+    match = re.match(patron, codigo)
+    
+    valido = False
+    depto = None
+    num = None
+    
+    if match:
+        depto = match.group(1)
+        num = match.group(2)
+        if depto in DEPARTAMENTOS_VALIDOS:
+            valido = True
+            
+    return {"valido": valido, "departamento": depto, "numero": num}
+
+def validar_factura(codigo: str) -> Dict:
+    # Plantilla: FAC - Serie(A-E) - 6 dígitos
+    patron = r'^FAC-([A-E])-(\d{6})$'
+    match = re.match(patron, codigo)
+    
+    valido = bool(match)
+    return {
+        "valido": valido, 
+        "serie": match.group(1) if match else None, 
+        "numero": match.group(2) if match else None
+    }
+
+def validar_codigo(codigo: str) -> Dict:
+    #Detecta el tipo y valida 
+    resultado = {"codigo": codigo, "tipo": "desconocido", "valido": False, "detalles": {}}
+    
+    if codigo.startswith("TEC-") or codigo.startswith("ALI-") or codigo.startswith("ROB-"):
+        resultado["tipo"] = "producto"
+        resultado.update({"detalles": validar_producto(codigo)})
+    elif codigo.startswith("ENV-"):
+        resultado["tipo"] = "envio"
+        resultado.update({"detalles": validar_envio(codigo)})
+    elif codigo.startswith("EMP-"):
+        resultado["tipo"] = "empleado"
+        resultado.update({"detalles": validar_empleado(codigo)})
+    elif codigo.startswith("FAC-"):
+        resultado["tipo"] = "factura"
+        resultado.update({"detalles": validar_factura(codigo)})
+        
+    resultado["valido"] = resultado["detalles"].get("valido", False)
+    return resultado
