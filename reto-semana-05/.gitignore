@@ -1,0 +1,6 @@
+# Ignorar el ambiente virtual
+.venv/
+venv/
+__pycache__/
+*.csv
+!data/ventas.csv
