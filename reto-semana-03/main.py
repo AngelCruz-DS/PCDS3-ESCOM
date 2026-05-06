@@ -38,4 +38,14 @@ def main():
         productos[producto]["unidades"] += cantidad
         productos[producto]["ingreso"] += (cantidad * precio)
 
-    
+    for prod in productos: #Calcula promedio de cada producto
+        unidades = productos[prod]["unidades"]
+        ingreso = productos[prod]["ingreso"]
+
+        productos[prod]["promedio"] = ingreso / unidades if unidades > 0 else 0
+        
+    prod_ord = sorted( #Ordena de mayor a menor
+        productos.items()
+        key=lambda x: x[1]["ingreso"], #"lambda" es una funcion anonima
+        reverse=True #Ordena de manera descendente
+    )
