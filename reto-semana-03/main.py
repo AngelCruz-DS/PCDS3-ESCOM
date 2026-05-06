@@ -1,0 +1,41 @@
+import sys
+
+def main():
+    productos = {} #El diccionario principal
+
+    f_linea = True #pivote para ignorar el encabezado
+
+    for linea in sys.stdin:   #lee y agrupa datos
+        linea = linea.strip()
+
+        if f_linea:
+            f_linea = False #Ignora y cambia de pivote
+            continue
+
+        if not linea:
+            continue
+
+        partes = linea.split(",") #Seprar por comas
+
+        if len(partes) != 4:  #Valida que esten las 4 columnas
+            continue 
+
+        producto = partes[1]
+
+        try:   #Convierte cantidad a entero y precio a deecimal
+            cantidad = int(partes[2])
+            precio = float(partes[3])
+        except ValueError:
+            continue #Ignora si hay letras donde deberia haber numeros
+
+        if producto not in productos: #crea diccionario si aun no existe
+            productos[producto] = {
+                "unidades": 0,
+                "ingreso": 0.0
+            }
+
+        #suma los datos
+        productos[producto]["unidades"] += cantidad
+        productos[producto]["ingreso"] += (cantidad * precio)
+
+    
