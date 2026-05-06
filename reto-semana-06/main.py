@@ -78,3 +78,36 @@ def validar_codigo(codigo: str) -> Dict:
         
     resultado["valido"] = resultado["detalles"].get("valido", False)
     return resultado
+
+def procesar_lote(codigos: List[str]) -> Dict:
+    res = {
+        "total": len(codigos), "validos": 0, "invalidos": 0,
+        "por_tipo": {t: {"total": 0, "validos": 0} for t in ["producto", "envio", "empleado", "factura", "desconocido"]},
+        "detalle": []
+    }
+    
+    for c in codigos:
+        v = validar_codigo(c)
+        tipo = v["tipo"]
+        res["por_tipo"][tipo]["total"] += 1
+        if v["valido"]:
+            res["validos"] += 1
+            res["por_tipo"][tipo]["validos"] += 1
+        else:
+            res["invalidos"] += 1
+        res["detalle"].append(v)
+    return res
+
+def main():
+    CODIGOS = [
+        "TEC-0001-MX", "ENV-2024-03-15-001234", "EMP-VEN-1234", "FAC-A-123456",
+        "tec-0001-MX", "ENV-2019-03-15-001234", "EMP-VEN-0123", "FAC-F-123456", "XXX-123"
+    ]
+    reporte = procesar_lote(CODIGOS)
+    print(f"Total: {reporte['total']} | Válidos: {reporte['validos']} | Inválidos: {reporte['invalidos']}")
+    for tipo, stats in reporte["por_tipo"].items():
+        if stats["total"] > 0:
+            print(f" - {tipo.capitalize()}: {stats['validos']}/{stats['total']} OK")
+
+if __name__ == "__main__":
+    main()
