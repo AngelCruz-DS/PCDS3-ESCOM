@@ -107,3 +107,44 @@ temp_por_estacion = np.nanmean(temperatura, axis=(1,2))
 humedad_por_hora = np.nanmean(humedad, axis=(0,1))
 # CO2 máximo por día (colapsamos estaciones y horas: axis=(0,2))
 co2_max_por_dia = np.nanmax(co2, axis=(0,2))
+
+temperatura_fahrenheit = temperatura * 9/5 + 32
+temperatura_kelvin = temperatura + 273.15
+
+# Normalización Min-Max de la humedad [0, 1]
+humedad_min = np.nanmin(humedad)
+humedad_max = np.nanmax(humedad)
+humedad_normalizada = (humedad - humedad_min) / (humedad_max - humedad_min)
+
+print("\n💧 HUMEDAD NORMALIZADA [0-1]")
+print(f"   Promedio: {np.nanmean(humedad_normalizada):.3f}")
+print(f"   Min:      {np.nanmin(humedad_normalizada):.3f}")
+print(f"   Max:      {np.nanmax(humedad_normalizada):.3f}")
+
+# 3.2 Índice de Confort Térmico (ICT)
+# Fórmula: ICT = T + 0.05 * H
+ict = temperatura + 0.05 * humedad
+
+print("\n🌡️💧 ÍNDICE DE CONFORT TÉRMICO (ICT)")
+print("─" * 45)
+print(f"   Shape del array ICT: {ict.shape}")
+print(f"   ICT promedio: {np.nanmean(ict):.2f}")
+print(f"   ICT máximo:   {np.nanmax(ict):.2f}")
+print(f"   ICT mínimo:   {np.nanmin(ict):.2f}")
+
+# Indexación booleana para clasificar
+n_frio = np.sum(ict < 20)
+n_confortable = np.sum((ict >= 20) & (ict < 25))
+n_calido = np.sum((ict >= 25) & (ict < 30))
+n_muy_caluroso = np.sum(ict >= 30)
+
+n_validas = np.sum(~np.isnan(ict))
+
+print("\n📊 DISTRIBUCIÓN DE CONDICIONES")
+print("─" * 45)
+print(f"   ❄️  Frío (<20):            {n_frio:5d} ({100*n_frio/n_validas:5.1f}%)")
+print(f"   ✅ Confortable (20-25):  {n_confortable:5d} ({100*n_confortable/n_validas:5.1f}%)")
+print(f"   🌤️  Cálido (25-30):       {n_calido:5d} ({100*n_calido/n_validas:5.1f}%)")
+print(f"   🔥 Muy caluroso (≥30):   {n_muy_caluroso:5d} ({100*n_muy_caluroso/n_validas:5.1f}%)")
+print(f"   ────────────────────────────────────────")
+print(f"   Total válidas:            {n_validas:5d}")
