@@ -119,3 +119,139 @@ def detectar_path_traversal(logs_http: List[Dict]) -> List[Dict]:
         if re.search(patron, log['path'], re.IGNORECASE):
             sospechosos.append(log)
     return sospechosos
+# --- PARTE 3: CLASIFICADOR Y GENERADOR DE REPORTES ---
+
+def clasificar_linea(linea: str) -> str:
+    """Decide qué tipo de log es leyendo el inicio de la línea."""
+    if linea.startswith("[AUTH]"): return 'auth'
+    if linea.startswith("[DB-"): return 'db'
+    if re.match(r'^\d{1,3}\.', linea): return 'http'
+    if re.match(r'^\[\d{4}-', linea): return 'error'
+    return 'desconocido'
+
+def generar_reporte(logs: str) -> Dict:
+    """Toma todo el texto, lo procesa y genera el diccionario final."""
+    lineas = [l for l in logs.split('\n') if l.strip()]
+    
+    parsed_http = []
+    parsed_error = []
+    parsed_auth = []
+    parsed_db = []
+    
+    # 1. Separar y parsear cada línea
+    for linea in lineas:
+        tipo = clasificar_linea(linea)
+        if tipo == 'http':
+            p = parse_http_log(linea)
+            if p: parsed_http.append(p)
+        elif tipo == 'error':
+            p = parse_error_log(linea)
+            if p: parsed_error.append(p)
+        elif tipo == 'auth':
+            p = parse_auth_log(linea)
+            if p: parsed_auth.append(p)
+        elif tipo == 'db':
+            p = parse_db_log(linea)
+            if p: parsed_db.append(p)
+
+    # 2. Calcular estadísticas de HTTP
+    status_counts = Counter([log['status'] for log in parsed_http])
+    status_format = {
+        "2xx": sum(v for k, v in status_counts.items() if 200 <= k < 300),
+        "3xx": sum(v for k, v in status_counts.items() if 300 <= k < 400),
+        "4xx": sum(v for k, v in status_counts.items() if 400 <= k < 500),
+        "5xx": sum(v for k, v in status_counts.items() if 500 <= k < 600)
+    }
+    rutas_counts = Counter([log['path'] for log in parsed_http])
+    
+    # 3. Calcular rendimiento DB
+    tiempo_promedio = sum(log['execution_time'] for log in parsed_db) / len(parsed_db) if parsed_db else 0
+
+    # 4. Ensamblar el diccionario final
+    return {
+        "resumen": {
+            "total_lineas": len(lineas),
+            "por_tipo": {"http": len(parsed_http), "error": len(parsed_error), "auth": len(parsed_auth), "db": len(parsed_db)}
+        },
+        "http": {
+            "total_requests": len(parsed_http),
+            "por_status": status_format,
+            "top_rutas": rutas_counts.most_common()
+        },
+        "errores": {
+            "total": len(parsed_error),
+            "por_nivel": dict(Counter([log['level'] for log in parsed_error]))
+        },
+        "seguridad": {
+            "alertas_fuerza_bruta": detectar_ataques_fuerza_bruta(parsed_auth),
+            "alertas_sql_injection": detectar_sql_injection(parsed_db),
+            "alertas_path_traversal": detectar_path_traversal(parsed_http)
+        },
+        "rendimiento": {
+            "queries_lentos": [log for log in parsed_db if log['query_type'] == 'SLOW_QUERY'],
+            "tiempo_promedio_queries": tiempo_promedio
+        }
+    }
+
+def mostrar_reporte(reporte: Dict) -> None:
+    """Imprime el reporte en la terminal de forma bonita y legible."""
+    print("=" * 70)
+    print("                    REPORTE DE ANÁLISIS DE LOGS")
+    print("=" * 70)
+    
+    print("\n📊 RESUMEN GENERAL")
+    print("-" * 40)
+    print(f"Total de líneas procesadas: {reporte['resumen']['total_lineas']}")
+    print("Por tipo:")
+    for tipo, count in reporte['resumen']['por_tipo'].items():
+        print(f"  • {tipo.upper()}: {count}")
+    
+    if 'http' in reporte:
+        print("\n🌐 LOGS HTTP")
+        print("-" * 40)
+        print(f"Total requests: {reporte['http']['total_requests']}")
+        print("Por código de estado:")
+        for status, count in reporte['http']['por_status'].items():
+            if count > 0: print(f"  • {status}: {count}")
+        print("Top 5 rutas más solicitadas:")
+        for ruta, count in reporte['http'].get('top_rutas', [])[:5]:
+            print(f"  • {ruta}: {count} requests")
+    
+    if 'errores' in reporte:
+        print("\n❌ ERRORES")
+        print("-" * 40)
+        print(f"Total errores: {reporte['errores']['total']}")
+        print("Por nivel:")
+        for nivel, count in reporte['errores']['por_nivel'].items():
+            print(f"  • {nivel}: {count}")
+    
+    if 'seguridad' in reporte:
+        print("\n🔒 ALERTAS DE SEGURIDAD")
+        print("-" * 40)
+        fb = reporte['seguridad'].get('alertas_fuerza_bruta', [])
+        if fb:
+            print(f"⚠️  Posibles ataques de fuerza bruta: {len(fb)}")
+            for alerta in fb:
+                print(f"     IP: {alerta['ip']} - {alerta['intentos']} intentos fallidos")
+        
+        sql = reporte['seguridad'].get('alertas_sql_injection', [])
+        if sql:
+            print(f"⚠️  Posibles SQL Injection: {len(sql)}")
+            for alerta in sql[:3]:
+                print(f"     Query: {alerta['query'][:60]}...")
+        
+        pt = reporte['seguridad'].get('alertas_path_traversal', [])
+        if pt:
+            print(f"⚠️  Posibles Path Traversal: {len(pt)}")
+            for alerta in pt[:3]:
+                print(f"     Ruta: {alerta['path']}")
+    
+    if 'rendimiento' in reporte:
+        print("\n⏱️  RENDIMIENTO")
+        print("-" * 40)
+        print(f"Queries lentos detectados: {len(reporte['rendimiento'].get('queries_lentos', []))}")
+        if 'tiempo_promedio_queries' in reporte['rendimiento']:
+            print(f"Tiempo promedio de queries: {reporte['rendimiento']['tiempo_promedio_queries']:.3f}s")
+    
+    print("\n" + "=" * 70)
+    
