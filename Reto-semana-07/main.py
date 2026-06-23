@@ -36,3 +36,43 @@ PATRON_DB = re.compile(r'''
     (?P<query>.*)$
 ''', re.VERBOSE)
 
+# --- PARTE 1.2: FUNCIONES DE PARSEO ---
+
+def parse_http_log(linea: str) -> Optional[Dict]:
+    match = PATRON_HTTP.match(linea)
+    if match:
+        d = match.groupdict()
+        d['status'] = int(d['status'])
+        d['bytes'] = 0 if d['bytes'] == '-' else int(d['bytes'])
+        return d
+    return None
+
+def parse_error_log(linea: str) -> Optional[Dict]:
+    match = PATRON_ERROR.match(linea)
+    return match.groupdict() if match else None
+
+def parse_auth_log(linea: str) -> Optional[Dict]:
+    match = PATRON_AUTH.match(linea)
+    if match:
+        d = match.groupdict()
+        d['user'] = d['user'].strip()
+        d['action'] = d['action'].strip()
+        d['status'] = d['status'].strip()
+        d['ip'] = d['ip'].strip()
+        d['extra'] = {'session': d['session']} if d['session'] else {'attempts': int(d['attempts'])}
+        return d
+    return None
+
+def parse_db_log(linea: str) -> Optional[Dict]:
+    match = PATRON_DB.match(linea)
+    if match:
+        d = match.groupdict()
+        # Aqui vemos cual de los dos tiempos de ejecucion capturó
+        tiempo = d['time_q'] if d['time_q'] else d['time_sq']
+        return {
+            "timestamp": d['timestamp'],
+            "query_type": d['query_type'],
+            "execution_time": float(tiempo),
+            "query": d['query']
+        }
+    return None
