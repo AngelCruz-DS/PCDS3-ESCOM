@@ -184,3 +184,233 @@ def filtrar_por_rendimiento(df_calificaciones: pd.DataFrame,
         df_resultado = df_resultado[df_resultado['promedio_general'] <= max_promedio]
         
     return df_resultado.round(2)
+
+def calcular_promedio_materia(df_calificaciones: pd.DataFrame, materia_id: str) -> Dict:
+    """Calcula estadísticas de una materia específica."""
+    df_mat = df_calificaciones[df_calificaciones['materia_id'] == materia_id].copy()
+    if df_mat.empty:
+        return {}
+        
+    df_mat['promedio'] = df_mat[['parcial_1', 'parcial_2', 'final']].mean(axis=1)
+    total = len(df_mat)
+    aprobados = (df_mat['promedio'] >= 6.0).sum()
+    
+    return {
+        "materia": materia_id,
+        "inscritos": total,
+        "promedio_parcial1": df_mat['parcial_1'].mean(),
+        "promedio_parcial2": df_mat['parcial_2'].mean(),
+        "promedio_final": df_mat['final'].mean(),
+        "promedio_general": df_mat['promedio'].mean(),
+        "tasa_aprobacion": (aprobados / total) * 100 if total > 0 else 0.0,
+        "calificacion_maxima": df_mat['promedio'].max(),
+        "calificacion_minima": df_mat['promedio'].min()
+    }
+
+def ranking_estudiantes(df_calificaciones: pd.DataFrame, 
+                        df_estudiantes: pd.DataFrame,
+                        top_n: int = 10) -> pd.DataFrame:
+    """Genera ranking de los mejores estudiantes."""
+    df_calif = df_calificaciones.copy()
+    df_calif['promedio'] = df_calif[['parcial_1', 'parcial_2', 'final']].mean(axis=1)
+    
+    promedios = df_calif.groupby('boleta')['promedio'].mean().reset_index()
+    ranking = pd.merge(promedios, df_estudiantes[['boleta', 'nombre', 'semestre']], on='boleta')
+    ranking = ranking.sort_values(by='promedio', ascending=False).head(top_n)
+    
+    ranking['promedio'] = ranking['promedio'].round(2)
+    ranking.insert(0, 'Posición', range(1, len(ranking) + 1))
+    
+    return ranking[['Posición', 'nombre', 'semestre', 'promedio']]
+
+def estadisticas_por_semestre(df_estudiantes: pd.DataFrame,
+                              df_calificaciones: pd.DataFrame) -> pd.DataFrame:
+    """Calcula métricas agrupadas por semestre."""
+    df_calif = df_calificaciones.copy()
+    df_calif['promedio'] = df_calif[['parcial_1', 'parcial_2', 'final']].mean(axis=1)
+    
+    prom_est = df_calif.groupby('boleta')['promedio'].mean().reset_index()
+    df_completo = pd.merge(df_estudiantes, prom_est, on='boleta')
+
+    stats = df_completo.groupby('semestre').agg(
+        Estudiantes=('boleta', 'count'),
+        Promedio=('promedio', 'mean')
+    )
+    
+    aprobados = df_completo[df_completo['promedio'] >= 6.0].groupby('semestre')['boleta'].count()
+    stats['Tasa Aprob. (%)'] = ((aprobados / stats['Estudiantes']) * 100).fillna(0)
+    
+    return stats.round(2)
+
+
+# =====================================================================
+# PARTE 4: IDENTIFICACIÓN DE RIESGO Y REPORTES
+# =====================================================================
+
+def identificar_estudiantes_riesgo(df_calificaciones: pd.DataFrame,
+                                   df_estudiantes: pd.DataFrame,
+                                   umbral_promedio: float = 7.0,
+                                   max_reprobadas: int = 2) -> pd.DataFrame:
+    """Identifica alumnos con riesgo académico."""
+    df_calif = df_calificaciones.copy()
+    df_calif['promedio'] = df_calif[['parcial_1', 'parcial_2', 'final']].mean(axis=1)
+    
+    promedios = df_calif.groupby('boleta')['promedio'].mean()
+    reprobadas = df_calif[df_calif['promedio'] < 6.0].groupby('boleta').size()
+    
+    df_riesgo = pd.DataFrame({'Promedio': promedios})
+    df_riesgo['Reprobadas'] = reprobadas
+    df_riesgo['Reprobadas'] = df_riesgo['Reprobadas'].fillna(0).astype(int)
+    
+    riesgo_mask = (df_riesgo['Promedio'] < umbral_promedio) | (df_riesgo['Reprobadas'] > max_reprobadas)
+    df_riesgo = df_riesgo[riesgo_mask].reset_index()
+    
+    def determinar_motivo(row):
+        if row['Promedio'] < umbral_promedio and row['Reprobadas'] > max_reprobadas:
+            return 'Ambos'
+        elif row['Promedio'] < umbral_promedio:
+            return 'Bajo promedio'
+        return 'Mat. reprob.'
+            
+    df_riesgo['Motivo'] = df_riesgo.apply(determinar_motivo, axis=1)
+    resultado = pd.merge(df_riesgo, df_estudiantes[['boleta', 'nombre']], on='boleta')
+    
+    return resultado[['boleta', 'nombre', 'Promedio', 'Reprobadas', 'Motivo']].round(2)
+
+def generar_reporte_academico(df_estudiantes: pd.DataFrame,
+                              df_calificaciones: pd.DataFrame,
+                              df_materias: pd.DataFrame) -> Dict:
+    """Genera el reporte maestro de Control Escolar."""
+    df_calif = df_calificaciones.copy()
+    df_calif['promedio'] = df_calif[['parcial_1', 'parcial_2', 'final']].mean(axis=1)
+    promedios_est = df_calif.groupby('boleta')['promedio'].mean()
+    
+    tasa_aprob = (promedios_est >= 6.0).mean() * 100
+    
+    return {
+        "resumen_general": {
+            "total_estudiantes": len(df_estudiantes),
+            "promedio_global": promedios_est.mean(),
+            "tasa_aprobacion": tasa_aprob
+        },
+        "por_semestre": estadisticas_por_semestre(df_estudiantes, df_calificaciones),
+        "mejores_estudiantes": ranking_estudiantes(df_calificaciones, df_estudiantes, 5),
+        "estudiantes_riesgo": identificar_estudiantes_riesgo(df_calificaciones, df_estudiantes),
+        "fecha_generacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+def exportar_kardex(boleta: str, kardex: Dict, formato: str = 'csv') -> str:
+    """Guarda las calificaciones en un archivo físico."""
+    if kardex['estudiante'] is None or kardex['materias'] is None:
+        return ""
+    
+    fecha = datetime.now().strftime("%Y%m%d")
+    nombre_archivo = f"kardex_{boleta}_{fecha}.{formato}"
+    df_mat = kardex['materias']
+    
+    if formato == 'csv':
+        df_mat.to_csv(nombre_archivo, index=False)
+    elif formato == 'json':
+        df_mat.to_json(nombre_archivo, orient='records')
+        
+    return nombre_archivo
+
+
+# =====================================================================
+# FUNCIONES DE VISUALIZACIÓN
+# =====================================================================
+
+def mostrar_kardex(kardex: Dict) -> None:
+    if kardex['estudiante'] is None:
+        print("❌ Estudiante no encontrado")
+        return
+    
+    est = kardex['estudiante']
+    print("=" * 70)
+    print("                         KARDEX ACADÉMICO")
+    print("=" * 70)
+    print(f"\n📋 DATOS DEL ESTUDIANTE")
+    print("-" * 40)
+    print(f"Boleta: {est.get('boleta', 'N/A')}")
+    print(f"Nombre: {est.get('nombre', 'N/A')}")
+    print(f"Semestre: {est.get('semestre', 'N/A')}")
+    print(f"Carrera: {est.get('carrera', 'N/A')}")
+    print(f"Email: {est.get('email', 'N/A')}")
+    
+    print(f"\n📚 CALIFICACIONES")
+    print("-" * 70)
+    if kardex['materias'] is not None and not kardex['materias'].empty:
+        print(kardex['materias'].to_string(index=False))
+    else:
+        print("Sin calificaciones registradas")
+    
+    print(f"\n📊 RESUMEN")
+    print("-" * 40)
+    print(f"Promedio General: {kardex.get('promedio_general', 0):.2f}")
+    print(f"Créditos Cursados: {kardex.get('creditos_cursados', 0)}")
+    print(f"Materias Aprobadas: {kardex.get('materias_aprobadas', 0)}")
+    print(f"Materias Reprobadas: {kardex.get('materias_reprobadas', 0)}")
+    print("=" * 70)
+
+def mostrar_reporte(reporte: Dict) -> None:
+    print("=" * 70)
+    print("              REPORTE ACADÉMICO - CIENCIA DE DATOS")
+    print(f"              Generado: {reporte['fecha_generacion']}")
+    print("=" * 70)
+    
+    res = reporte.get('resumen_general', {})
+    print(f"\n📊 RESUMEN GENERAL")
+    print("-" * 40)
+    print(f"Total de estudiantes: {res.get('total_estudiantes', 'N/A')}")
+    print(f"Promedio global: {res.get('promedio_global', 0):.2f}")
+    print(f"Tasa de aprobación: {res.get('tasa_aprobacion', 0):.1f}%")
+    
+    if reporte.get('por_semestre') is not None:
+        print(f"\n📅 ESTADÍSTICAS POR SEMESTRE")
+        print("-" * 40)
+        print(reporte['por_semestre'].to_string())
+    
+    if reporte.get('mejores_estudiantes') is not None:
+        print(f"\n🏆 TOP 5 ESTUDIANTES")
+        print("-" * 40)
+        print(reporte['mejores_estudiantes'].to_string(index=False))
+    
+    if reporte.get('estudiantes_riesgo') is not None and not reporte['estudiantes_riesgo'].empty:
+        print(f"\n⚠️ ESTUDIANTES EN RIESGO ({len(reporte['estudiantes_riesgo'])})")
+        print("-" * 40)
+        print(reporte['estudiantes_riesgo'].to_string(index=False))
+    else:
+        print(f"\n✅ No hay estudiantes en riesgo académico")
+    
+    print("\n" + "=" * 70)
+
+
+# =====================================================================
+# EJECUCIÓN PRINCIPAL
+# =====================================================================
+
+if __name__ == "__main__":
+    # Cargar todos los datos
+    df_estudiantes, df_calificaciones, df_materias = cargar_datos()
+    
+    # Imprimir validación inicial
+    print("\nVALIDACIÓN DE DATOS")
+    print("=" * 50)
+    validacion = validar_datos(df_calificaciones)
+    print(validacion)
+    
+    # Probar Kardex de un estudiante específico
+    print("\nKARDEX DE ESTUDIANTE")
+    print("=" * 50)
+    kardex_prueba = obtener_kardex('2021630001', df_estudiantes, df_calificaciones, df_materias)
+    mostrar_kardex(kardex_prueba)
+    
+    # Exportar el Kardex para probar la funcionalidad
+    exportar_kardex('2021630001', kardex_prueba, formato='csv')
+    
+    # Generar y mostrar el reporte maestro
+    print("\nREPORTE ACADÉMICO COMPLETO")
+    reporte_final = generar_reporte_academico(df_estudiantes, df_calificaciones, df_materias)
+    mostrar_reporte(reporte_final)
+
+    
