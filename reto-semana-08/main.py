@@ -79,10 +79,6 @@ co2_mañanas_pares = co2[::2, :, 6:12]
 temp_inverso = temperatura[:, ::-1, :]
 
 
-# =====================================================================
-# PARTE 2: ESTADÍSTICAS BÁSICAS
-# =====================================================================
-
 # 2.1 Estadísticas Globales (usando nan* para ignorar faltantes)
 temp_promedio = np.nanmean(temperatura)
 temp_maxima = np.nanmax(temperatura)
@@ -148,3 +144,62 @@ print(f"   🌤️  Cálido (25-30):       {n_calido:5d} ({100*n_calido/n_valida
 print(f"   🔥 Muy caluroso (≥30):   {n_muy_caluroso:5d} ({100*n_muy_caluroso/n_validas:5.1f}%)")
 print(f"   ────────────────────────────────────────")
 print(f"   Total válidas:            {n_validas:5d}")
+
+# 4.1 Detección de Anomalías
+# Regla: Más de 2 desviaciones estándar de la media es una anomalía
+co2_media = np.nanmean(co2)
+co2_std = np.nanstd(co2)
+limite_inferior = co2_media - 2 * co2_std
+limite_superior = co2_media + 2 * co2_std
+
+print("\n🏭 ANÁLISIS DE ANOMALÍAS EN CO2")
+print("─" * 45)
+print(f"   Media CO2:       {co2_media:.1f} ppm")
+print(f"   Desv. Est.:      {co2_std:.1f} ppm")
+print(f"   Límite inferior: {limite_inferior:.1f} ppm")
+print(f"   Límite superior: {limite_superior:.1f} ppm")
+
+# Máscara booleana excluyendo NaNs
+mascara_anomalias = ~np.isnan(co2) & ((co2 < limite_inferior) | (co2 > limite_superior))
+n_anomalias = np.sum(mascara_anomalias)
+valores_anomalos = co2[mascara_anomalias]
+
+print(f"\n⚠️  ANOMALÍAS DETECTADAS: {n_anomalias}")
+if n_anomalias > 0:
+    print(f"   Valores: {valores_anomalos[:10].round(1)}")
+    if n_anomalias > 10:
+        print(f"   ... y {n_anomalias - 10} más")
+
+# 4.2 Análisis de Contingencia Ambiental (Día 4 / Índice 3)
+DIA_CONTINGENCIA = 3
+co2_contingencia = co2[:, DIA_CONTINGENCIA, :]
+dias_normales = [0, 1, 2, 4, 5, 6]
+co2_dias_normales = co2[:, dias_normales, :]
+
+promedio_contingencia = np.nanmean(co2_contingencia)
+promedio_normal = np.nanmean(co2_dias_normales)
+incremento_porcentual = ((promedio_contingencia - promedio_normal) / promedio_normal) * 100
+
+print("\n╔══════════════════════════════════════════════════════════════╗")
+print("║            ANÁLISIS DE CONTINGENCIA AMBIENTAL                ║")
+print("║                       Día 4                                  ║")
+print("╠══════════════════════════════════════════════════════════════╣")
+print(f"║  CO2 promedio día contingencia: {promedio_contingencia:>7.1f} ppm               ║")
+print(f"║  CO2 promedio días normales:    {promedio_normal:>7.1f} ppm               ║")
+print(f"║  Incremento:                    {incremento_porcentual:>7.1f} %                 ║")
+print("╚══════════════════════════════════════════════════════════════╝")
+
+co2_por_estacion_contingencia = np.nanmean(co2_contingencia, axis=1)
+# Aquí colapsamos días (1) y horas (2) para tener un solo promedio por estación
+co2_por_estacion_normal = np.nanmean(co2_dias_normales, axis=(1,2))
+
+incremento_por_estacion = ((co2_por_estacion_contingencia - co2_por_estacion_normal) / co2_por_estacion_normal) * 100
+idx_mas_afectada = np.argmax(incremento_por_estacion)
+
+print("\n📍 IMPACTO POR ESTACIÓN")
+print("─" * 50)
+for i, est in enumerate(estaciones):
+    barra = "█" * int(incremento_por_estacion[i] / 2)
+    print(f"   {est:15s}: +{incremento_por_estacion[i]:5.1f}% {barra}")
+
+print(f"\n⚠️  Estación más afectada: {estaciones[idx_mas_afectada]}")
