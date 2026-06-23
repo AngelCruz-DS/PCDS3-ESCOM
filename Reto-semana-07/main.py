@@ -76,3 +76,18 @@ def parse_db_log(linea: str) -> Optional[Dict]:
             "query": d['query']
         }
     return None
+# --- PARTE 2: ANALIZADOR DE SEGURIDAD (Fase 1) ---
+
+def detectar_ataques_fuerza_bruta(logs_auth: List[Dict]) -> List[Dict]:
+    """Detecta si una IP falló el login más de 3 veces."""
+    intentos_fallidos = defaultdict(int)
+    for log in logs_auth:
+        if log['status'] == 'FAILED':
+            # ¡Nuestro viejo amigo += haciendo su trabajo de acumular!
+            intentos_fallidos[log['ip']] += log['extra'].get('attempts', 1)
+    
+    return [{"ip": ip, "intentos": count} for ip, count in intentos_fallidos.items() if count > 3]
+
+def detectar_errores_criticos(logs_error: List[Dict]) -> List[Dict]:
+    """Filtra los errores que son nivel ERROR o CRITICAL."""
+    return [log for log in logs_error if log['level'] in ['ERROR', 'CRITICAL']]
