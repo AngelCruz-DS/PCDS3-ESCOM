@@ -203,3 +203,65 @@ for i, est in enumerate(estaciones):
     print(f"   {est:15s}: +{incremento_por_estacion[i]:5.1f}% {barra}")
 
 print(f"\n⚠️  Estación más afectada: {estaciones[idx_mas_afectada]}")
+
+# 1. Estación más calurosa (mayor temperatura promedio)
+idx_mas_calurosa = np.argmax(temp_por_estacion)
+estacion_mas_calurosa = estaciones[idx_mas_calurosa]
+
+# 2. Estación más húmeda (mayor humedad promedio)
+# Calculamos la humedad colapsando días y horas (axis=(1,2))
+idx_mas_humeda = np.argmax(np.nanmean(humedad, axis=(1,2)))
+estacion_mas_humeda = estaciones[idx_mas_humeda]
+
+# 3. Estación con mejor calidad de aire (menor CO2 promedio)
+idx_mejor_aire = np.argmin(np.nanmean(co2, axis=(1,2)))
+estacion_mejor_aire = estaciones[idx_mejor_aire]
+
+# 4. Hora más calurosa del día (promedio de todas las estaciones y días)
+# Colapsamos estaciones y días (axis=(0,1))
+temp_por_hora = np.nanmean(temperatura, axis=(0, 1))
+hora_mas_calurosa = np.argmax(temp_por_hora)
+
+# 5. Hora con peor calidad de aire
+co2_por_hora = np.nanmean(co2, axis=(0, 1))
+hora_peor_aire = np.argmax(co2_por_hora)
+
+# 6. Número de valores faltantes en total
+nan_temperatura = np.sum(np.isnan(temperatura))
+nan_humedad = np.sum(np.isnan(humedad))
+nan_co2 = np.sum(np.isnan(co2))
+total_nan = nan_temperatura + nan_humedad + nan_co2
+
+print("\n╔══════════════════════════════════════════════════════════════════════╗")
+print("║                                                                      ║")
+print("║            🌡️  METEOSENSE - REPORTE EJECUTIVO SEMANAL  💨            ║")
+print("║                        CDMX - Semana de Análisis                     ║")
+print("║                                                                      ║")
+print("╠══════════════════════════════════════════════════════════════════════╣")
+print("║                                                                      ║")
+print("║  📊 RESUMEN DE CONDICIONES                                           ║")
+print("║  ─────────────────────────────────────────────────────────────────   ║")
+print(f"║    🌡️  Temperatura promedio:    {np.nanmean(temperatura):>5.1f} °C                        ║")
+print(f"║    💧 Humedad promedio:         {np.nanmean(humedad):>5.1f} %                         ║")
+print(f"║    🏭 CO2 promedio:             {np.nanmean(co2):>6.1f} ppm                       ║")
+print("║                                                                      ║")
+print("║  🏆 RANKINGS                                                         ║")
+print("║  ─────────────────────────────────────────────────────────────────   ║")
+print(f"║    🔥 Estación más calurosa:   {estacion_mas_calurosa:15s}                   ║")
+print(f"║    💧 Estación más húmeda:     {estacion_mas_humeda:15s}                   ║")
+print(f"║    🌿 Mejor calidad de aire:   {estacion_mejor_aire:15s}                   ║")
+print("║                                                                      ║")
+print("║  ⏰ PATRONES TEMPORALES                                              ║")
+print("║  ─────────────────────────────────────────────────────────────────   ║")
+print(f"║    🌡️  Hora más calurosa:       {hora_mas_calurosa:02d}:00 hrs                          ║")
+print(f"║    🏭 Hora con más CO2:         {hora_peor_aire:02d}:00 hrs                          ║")
+print("║                                                                      ║")
+print("║  ⚠️  CALIDAD DE DATOS                                                ║")
+print("║  ─────────────────────────────────────────────────────────────────   ║")
+print(f"║    Valores faltantes totales:  {total_nan:4d}                                 ║")
+print(f"║      - Temperatura: {nan_temperatura:3d}                                            ║")
+print(f"║      - Humedad:     {nan_humedad:3d}                                            ║")
+print(f"║      - CO2:         {nan_co2:3d}                                            ║")
+print("║                                                                      ║")
+print("╚══════════════════════════════════════════════════════════════════════╝")
+print("")
