@@ -91,3 +91,31 @@ def detectar_ataques_fuerza_bruta(logs_auth: List[Dict]) -> List[Dict]:
 def detectar_errores_criticos(logs_error: List[Dict]) -> List[Dict]:
     """Filtra los errores que son nivel ERROR o CRITICAL."""
     return [log for log in logs_error if log['level'] in ['ERROR', 'CRITICAL']]
+# --- PARTE 2: ANALIZADOR DE SEGURIDAD (Fase 2) ---
+
+PATRONES_SQL_INJECTION = [
+    r"(?i)\bOR\b\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+",  # Busca el clásico OR 1=1
+    r"(?i)\bUNION\b.*\bSELECT\b",                       # UNION SELECT
+    r"--",                                              # Comentario SQL
+    r"(?i)\bDROP\b\s+\bTABLE\b",                        # DROP TABLE
+    r"(?i)\bDELETE\b\s+\bFROM\b.*\bWHERE\b\s+1\s*=\s*1",# DELETE WHERE 1=1
+]
+
+def detectar_sql_injection(logs_db: List[Dict]) -> List[Dict]:
+    """Busca trampas de inyección SQL en las consultas."""
+    sospechosos = []
+    for log in logs_db:
+        for patron in PATRONES_SQL_INJECTION:
+            if re.search(patron, log['query']):
+                sospechosos.append(log)
+                break
+    return sospechosos
+
+def detectar_path_traversal(logs_http: List[Dict]) -> List[Dict]:
+    """Busca intentos de navegar hacia atrás en las carpetas del servidor."""
+    sospechosos = []
+    patron = r'\.\./|\.\.\\|%2e%2e%2f'
+    for log in logs_http:
+        if re.search(patron, log['path'], re.IGNORECASE):
+            sospechosos.append(log)
+    return sospechosos
